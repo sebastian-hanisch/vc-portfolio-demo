@@ -154,16 +154,6 @@ with st.sidebar:
         "Multiple bei Homerun", *bounds("homerun_multiple_slider"), key="homerun_multiple_slider"
     )
 
-    st.markdown("**Referenz**")
-    run_exact_clicked = st.button(
-        "🎯 Exakte Lösung berechnen (OR-Tools)",
-        use_container_width=True,
-        help="Löst das vollständige gemischt-ganzzahlige Modell exakt - dient als Cross-Check "
-        f"für die Heuristiken. Auf {C.EXACT_SOLVE_TIME_LIMIT_SECONDS}s begrenzt (bei dieser "
-        "Problemgröße praktisch immer sofort bewiesen optimal). Läuft bewusst nur auf Klick, "
-        "nicht automatisch bei jeder Änderung.",
-    )
-
     st.button(
         "🎲 Neuen Dealflow generieren",
         use_container_width=True,
@@ -197,20 +187,6 @@ if best["total_ticket"] <= 0:
 value_gain = best["expected_value"] - baseline["expected_value"]
 pct_gain = (value_gain / baseline["expected_value"] * 100) if baseline["expected_value"] > 0 else 0.0
 
-if run_exact_clicked:
-    st.session_state["exact_scenario_key"] = scenario_key
-
-exact_result = None
-exact_stale = False
-if st.session_state.get("exact_scenario_key") == scenario_key:
-    with st.spinner(f"Berechne exakte Lösung (OR-Tools, bis zu {C.EXACT_SOLVE_TIME_LIMIT_SECONDS}s)..."):
-        exact_result = _compute_exact(*scenario_key)
-elif "exact_scenario_key" in st.session_state:
-    # Einstellungen haben sich seit der letzten exakten Berechnung geändert - die alte Lösung
-    # gehört zu einem anderen Szenario und wird bewusst NICHT mehr angezeigt, statt irreführend
-    # stehen zu bleiben.
-    exact_stale = True
-
 st.markdown("## 🎯 Ihr erwartungswert-optimiertes Startup-Portfolio")
 st.caption(f"Methode: **{best['label']}** - wird bei jedem Lauf neu anhand des erwarteten Portfolio-Werts bestimmt.")
 
@@ -229,53 +205,6 @@ if value_gain > 0.01:
     st.success(
         f"💰 **{best['label']}** erzielt hier einen um ca. **{value_gain:.2f} Mio. €** ({pct_gain:.1f}%) "
         f"höheren erwarteten Portfolio-Wert als '{baseline['label']}'."
-    )
-
-if exact_result is not None:
-    exact_eval = exact_result["eval"]
-    gap = exact_eval["expected_value"] - best["expected_value"]
-    gap_pct = (gap / exact_eval["expected_value"] * 100) if exact_eval["expected_value"] > 0 else 0.0
-
-    if exact_result["optimal"]:
-        if gap < 0.01:
-            st.info(
-                f"✅ Exakter Referenzlöser (OR-Tools, optimal gelöst, "
-                f"{exact_result['wall_time_ms']:.0f} ms): **{best['label']}** erreicht bereits "
-                f"das Optimum ({exact_eval['expected_value']:.2f} Mio. €)."
-            )
-        else:
-            st.info(
-                f"📐 Exakter Referenzlöser (OR-Tools, optimal gelöst, "
-                f"{exact_result['wall_time_ms']:.0f} ms): Optimum liegt bei "
-                f"{exact_eval['expected_value']:.2f} Mio. € - Lücke zur besten Heuristik: {gap:.2f} Mio. € "
-                f"({gap_pct:.1f}%)."
-            )
-    else:
-        if gap <= 0.01:
-            st.warning(
-                f"⏱️ Exakter Referenzlöser (OR-Tools, Zeitlimit erreicht, kein Optimalitäts-"
-                f"beweis, {exact_result['wall_time_ms']:.0f} ms): **{best['label']}** "
-                f"({best['expected_value']:.2f} Mio. €) erreicht oder übertrifft sogar die beste vom "
-                f"Solver gefundene Lösung ({exact_eval['expected_value']:.2f} Mio. €) - das tatsächliche "
-                f"Optimum könnte noch darüber liegen."
-            )
-        else:
-            st.warning(
-                f"⏱️ Exakter Referenzlöser (OR-Tools, Zeitlimit erreicht, kein Optimalitäts-"
-                f"beweis, {exact_result['wall_time_ms']:.0f} ms): beste bislang gefundene "
-                f"Lösung liegt bei {exact_eval['expected_value']:.2f} Mio. € - {gap:.2f} Mio. € ({gap_pct:.1f}%) "
-                f"über der besten Heuristik, aber ohne Optimalitätsgarantie."
-            )
-elif exact_stale:
-    st.info(
-        "ℹ️ Die zuletzt berechnete exakte Lösung bezog sich auf ein anderes Szenario - "
-        "Einstellungen links geändert? Erneut auf '🎯 Exakte Lösung berechnen' klicken, um sie "
-        "für die aktuelle Konfiguration zu erhalten."
-    )
-else:
-    st.caption(
-        "💡 Exaktes Optimum als Cross-Check sehen? Button '🎯 Exakte Lösung berechnen' in der "
-        "Seitenleiste - läuft nur auf Klick, nicht automatisch bei jeder Änderung."
     )
 
 fig_best = build_sector_allocation_chart(best, sector_cap, title=best["label"])
@@ -369,18 +298,83 @@ st.plotly_chart(
 st.markdown("---")
 
 with st.expander("🔧 Wie wir das erreichen – vollständiger Methodenvergleich"):
-    all_results = list(results)
-    if exact_result is not None:
-        all_results.append(exact_result["eval"])
+    prefixes = ["greedy", "rotation", "polished"]
+    tab_labels = [r["label"] for r in results] + ["🧮 Exakt (OR-Tools)", "📊 Vergleich"]
+    tabs = st.tabs(tab_labels)
 
-    st.dataframe(comparison_table(all_results), use_container_width=True, hide_index=True)
-    st.plotly_chart(build_value_comparison_chart(all_results), use_container_width=True)
-
-    prefixes = ["greedy", "rotation", "polished", "exact"]
-    tabs = st.tabs([r["label"] for r in all_results])
-    for tab, r, prefix in zip(tabs, all_results, prefixes):
+    for tab, r, prefix in zip(tabs[: len(results)], results, prefixes):
         with tab:
             render_vc_panel(prefix, r["label"], r, sector_cap)
+
+    tab_exact, tab_compare = tabs[len(results)], tabs[len(results) + 1]
+
+    exact_eval = None
+    with tab_exact:
+        st.caption(
+            "Löst dasselbe gemischt-ganzzahlige Modell exakt statt mit unseren eigenen Verfahren - "
+            f"dient als Cross-Check. Auf {C.EXACT_SOLVE_TIME_LIMIT_SECONDS}s begrenzt (bei dieser "
+            "Problemgröße praktisch immer sofort bewiesen optimal)."
+        )
+        solve_clicked = st.button("🧮 Mit OR-Tools lösen", key="exact_solve_btn")
+        if solve_clicked:
+            st.session_state["exact_scenario_key"] = scenario_key
+
+        if st.session_state.get("exact_scenario_key") == scenario_key:
+            with st.spinner(f"Berechne exakte Lösung (OR-Tools, bis zu {C.EXACT_SOLVE_TIME_LIMIT_SECONDS}s)..."):
+                exact_result = _compute_exact(*scenario_key)
+
+            if exact_result is None:
+                st.error(
+                    "🚫 OR-Tools hat innerhalb des Zeitlimits keine gültige Lösung gefunden."
+                )
+            else:
+                exact_eval = exact_result["eval"]
+                gap = exact_eval["expected_value"] - best["expected_value"]
+                gap_pct = (gap / exact_eval["expected_value"] * 100) if exact_eval["expected_value"] > 0 else 0.0
+
+                if exact_result["optimal"]:
+                    if gap < 0.01:
+                        st.info(
+                            f"✅ Optimal gelöst ({exact_result['wall_time_ms']:.0f} ms): "
+                            f"**{best['label']}** erreicht bereits das Optimum "
+                            f"({exact_eval['expected_value']:.2f} Mio. €)."
+                        )
+                    else:
+                        st.info(
+                            f"📐 Optimal gelöst ({exact_result['wall_time_ms']:.0f} ms): Optimum "
+                            f"liegt bei {exact_eval['expected_value']:.2f} Mio. € - Lücke zur besten "
+                            f"Heuristik: {gap:.2f} Mio. € ({gap_pct:.1f}%)."
+                        )
+                else:
+                    if gap <= 0.01:
+                        st.warning(
+                            f"⏱️ Zeitlimit erreicht, kein Optimalitätsbeweis "
+                            f"({exact_result['wall_time_ms']:.0f} ms): **{best['label']}** "
+                            f"({best['expected_value']:.2f} Mio. €) erreicht oder übertrifft sogar "
+                            f"die beste vom Solver gefundene Lösung "
+                            f"({exact_eval['expected_value']:.2f} Mio. €)."
+                        )
+                    else:
+                        st.warning(
+                            f"⏱️ Zeitlimit erreicht, kein Optimalitätsbeweis "
+                            f"({exact_result['wall_time_ms']:.0f} ms): beste bislang gefundene "
+                            f"Lösung liegt bei {exact_eval['expected_value']:.2f} Mio. € - "
+                            f"{gap:.2f} Mio. € ({gap_pct:.1f}%) über der besten Heuristik, aber "
+                            "ohne Optimalitätsgarantie."
+                        )
+                render_vc_panel("exact", exact_eval["label"], exact_eval, sector_cap)
+        elif "exact_scenario_key" in st.session_state:
+            st.info(
+                "ℹ️ Die zuletzt berechnete exakte Lösung bezog sich auf ein anderes Szenario - "
+                "Einstellungen geändert? Erneut auf '🧮 Mit OR-Tools lösen' klicken."
+            )
+        else:
+            st.info("Noch keine Lösung berechnet – auf den Button oben klicken.")
+
+    with tab_compare:
+        all_results = list(results) + ([exact_eval] if exact_eval is not None else [])
+        st.dataframe(comparison_table(all_results), use_container_width=True, hide_index=True)
+        st.plotly_chart(build_value_comparison_chart(all_results), use_container_width=True)
 
 with st.expander("Wie funktioniert diese Demo?"):
     st.markdown(
