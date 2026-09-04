@@ -1,5 +1,7 @@
 # Startup-Portfolio-Optimierung
 
+**[→ Demo live ausprobieren](https://sebastianhanisch-vc-portfolio-demo.streamlit.app/)**
+
 Interaktive Demo zur Portfoliokonstruktion für einen VC-Fonds: aus einem Dealflow von
 Startups mit stark schief verteilten (Power-Law) Renditen wird die Deal-Auswahl gesucht,
 die den erwarteten Portfolio-Wert maximiert, ohne sich in einzelnen Sektoren zu
