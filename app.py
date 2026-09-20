@@ -117,7 +117,7 @@ PRESET_HELP = {
 preset_cols = st.columns(len(C.PRESETS))
 for i, name in enumerate(C.PRESETS.keys()):
     with preset_cols[i]:
-        st.button(name, use_container_width=True, on_click=apply_preset, args=(name,), help=PRESET_HELP[name])
+        st.button(name, width="stretch", on_click=apply_preset, args=(name,), help=PRESET_HELP[name])
 
 st.caption(
     "🔗 Die Adresszeile oben spiegelt Ihre aktuelle Konfiguration wider – einfach kopieren, "
@@ -156,7 +156,7 @@ with st.sidebar:
 
     st.button(
         "🎲 Neuen Dealflow generieren",
-        use_container_width=True,
+        width="stretch",
         on_click=randomize_seed,
         help="Würfelt einen neuen Zufalls-Seed für den Dealflow.",
     )
@@ -208,7 +208,7 @@ if value_gain > 0.01:
     )
 
 fig_best = build_sector_allocation_chart(best, sector_cap, title=best["label"])
-st.plotly_chart(fig_best, use_container_width=True, key="primary_sector_chart")
+st.plotly_chart(fig_best, width="stretch", key="primary_sector_chart")
 
 pdf_bytes_best = generate_portfolio_pdf(best["label"], best)
 st.download_button(
@@ -291,7 +291,7 @@ else:
 
 st.plotly_chart(
     build_simulation_histogram(sim_best["samples"], best["label"], sim_ev_only["samples"], eval_ev_only["label"]),
-    use_container_width=True,
+    width="stretch",
     key="core_theme_histogram",
 )
 
@@ -373,8 +373,8 @@ with st.expander("🔧 Wie wir das erreichen – vollständiger Methodenvergleic
 
     with tab_compare:
         all_results = list(results) + ([exact_eval] if exact_eval is not None else [])
-        st.dataframe(comparison_table(all_results), use_container_width=True, hide_index=True)
-        st.plotly_chart(build_value_comparison_chart(all_results), use_container_width=True, key="value_comparison")
+        st.dataframe(comparison_table(all_results), width="stretch", hide_index=True)
+        st.plotly_chart(build_value_comparison_chart(all_results), width="stretch", key="value_comparison")
 
 with st.expander("Wie funktioniert diese Demo?"):
     st.markdown(

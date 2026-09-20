@@ -15,7 +15,7 @@ def render_vc_panel(prefix, label, result, sector_cap):
     m4.metric("Ø Multiple", f"{result['expected_multiple']:.2f}x")
 
     fig = build_sector_allocation_chart(result, sector_cap, title=label)
-    st.plotly_chart(fig, use_container_width=True, key=f"{prefix}_sector_chart")
+    st.plotly_chart(fig, width="stretch", key=f"{prefix}_sector_chart")
 
     deals_df = pd.DataFrame(
         [
@@ -29,7 +29,7 @@ def render_vc_panel(prefix, label, result, sector_cap):
             for d in sorted(result["selected_deals"], key=lambda d: d.expected_value, reverse=True)
         ]
     )
-    st.dataframe(deals_df, use_container_width=True, hide_index=True)
+    st.dataframe(deals_df, width="stretch", hide_index=True)
 
     pdf_bytes = generate_portfolio_pdf(label, result)
     st.download_button(
